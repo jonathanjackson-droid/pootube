@@ -1,32 +1,42 @@
 // ============================================================
-// 💩 POOTUBE — BACK4APP EDITION
-// ============================================================
-// GitHub Pages frontend
-//        ↓
-// Back4App / Parse Cloud Code
-//        ↓
-// Invidious
+// POOTUBE 💩
+// GitHub Pages Frontend
+// Backend: Back4App / Parse Cloud Code
 // ============================================================
 
 
-// ------------------------------------------------------------
-// 1. BACK4APP CONFIG
-// ------------------------------------------------------------
+// ============================================================
+// BACK4APP CONFIG
+// ============================================================
 
-// PUT YOUR REAL VALUES HERE.
 const BACK4APP_APP_ID = "3GJDULsVIkiY8fp3DnCtDlMozQ6SEV1rAB83lzP2";
 const BACK4APP_JS_KEY = "3dQukaocvDuiKqb3SqsLMVf9oXkiIo1LSpsXjfqA";
 
 
-// Make sure Parse exists before doing anything.
+// Make sure Parse is loaded before this script.
 if (typeof Parse === "undefined") {
-    console.error("💀 Parse SDK is not loaded.");
-    showError("💀 Parse SDK failed to load.");
+    document.body.innerHTML = `
+        <div style="
+            font-family: Arial, sans-serif;
+            padding: 40px;
+            background: #111;
+            color: white;
+        ">
+            <h1>💩 Pootube is broken</h1>
+            <p>Parse was not loaded.</p>
+            <p>Make sure your index.html has:</p>
+            <pre>
+&lt;script src="https://unpkg.com/parse/dist/parse.min.js"&gt;&lt;/script&gt;
+&lt;script src="app.js"&gt;&lt;/script&gt;
+            </pre>
+        </div>
+    `;
+
     throw new Error("Parse SDK is not loaded.");
 }
 
 
-// Initialize Parse.
+// Initialize Back4App
 Parse.initialize(
     BACK4APP_APP_ID,
     BACK4APP_JS_KEY
@@ -34,12 +44,13 @@ Parse.initialize(
 
 Parse.serverURL = "https://parseapi.back4app.com/";
 
-console.log("💩 Parse initialized.");
+console.log("💩 Pootube frontend loaded.");
+console.log("🔌 Parse initialized.");
 
 
-// ------------------------------------------------------------
-// 2. DOM ELEMENTS
-// ------------------------------------------------------------
+// ============================================================
+// DOM ELEMENTS
+// ============================================================
 
 const videosContainer = document.getElementById("videos");
 const statusElement = document.getElementById("status");
@@ -59,9 +70,9 @@ const randomButton = document.getElementById("randomButton");
 const toast = document.getElementById("toast");
 
 
-// ------------------------------------------------------------
-// 3. BASIC UI HELPERS
-// ------------------------------------------------------------
+// ============================================================
+// GENERAL HELPERS
+// ============================================================
 
 function showLoading(message = "💩 Loading crap...") {
     if (statusElement) {
@@ -79,22 +90,14 @@ function hideLoading() {
 
 
 function showError(message) {
-    console.error(message);
+    console.error("💩 POOTUBE ERROR:", message);
 
     if (statusElement) {
-        statusElement.textContent = message;
+        statusElement.textContent = "💀 " + message;
         statusElement.style.display = "block";
     }
 
-    if (videosContainer) {
-        videosContainer.innerHTML = `
-            <div class="error-message">
-                <h2>💀 POOTUBE EXPLODED</h2>
-                <p>${escapeHTML(message)}</p>
-                <button onclick="location.reload()">Try Again</button>
-            </div>
-        `;
-    }
+    showToast("💀 " + message);
 }
 
 
@@ -104,9 +107,11 @@ function showToast(message) {
     toast.textContent = message;
     toast.style.display = "block";
 
-    setTimeout(() => {
+    clearTimeout(window.pootubeToastTimer);
+
+    window.pootubeToastTimer = setTimeout(() => {
         toast.style.display = "none";
-    }, 3000);
+    }, 3500);
 }
 
 
@@ -124,142 +129,15 @@ function escapeHTML(value) {
 }
 
 
-// ------------------------------------------------------------
-// 4. BACK4APP CLOUD FUNCTION HELPER
-// ------------------------------------------------------------
-
-async function backend(functionName, params = {}) {
-
-    console.log(`📡 Calling Back4App function: ${functionName}`, params);
-
-    try {
-
-        const result = await Parse.Cloud.run(
-            functionName,
-            params
-        );
-
-        console.log(
-            `🟢 Back4App ${functionName} succeeded:`,
-            result
-        );
-
-        return result;
-
-    } catch (error) {
-
-        console.error(
-            `🔴 Back4App ${functionName} failed:`,
-            error
-        );
-
-        throw error;
-    }
-}
-
-
-// ------------------------------------------------------------
-// 5. BACKEND FUNCTIONS
-// ------------------------------------------------------------
-
-async function pingBackend() {
-    return await backend("ping");
-}
-
-
-async function getTrending() {
-    return await backend("getTrending");
-}
-
-
-async function searchVideos(query) {
-    return await backend(
-        "searchVideos",
-        {
-            query: query
-        }
-    );
-}
-
-
-async function getVideo(videoId) {
-    return await backend(
-        "getVideo",
-        {
-            videoId: videoId
-        }
-    );
-}
-
-
-// ------------------------------------------------------------
-// 6. NORMALIZE VIDEO DATA
-// ------------------------------------------------------------
-
-function normalizeVideo(video) {
-
-    if (!video) {
-        return null;
+function formatViews(views) {
+    if (views === undefined || views === null) {
+        return "??? views";
     }
 
-    return {
-        id:
-            video.videoId ||
-            video.id ||
-            video.video_id ||
-            "",
-
-        title:
-            video.title ||
-            "Untitled Crap",
-
-        author:
-            video.author ||
-            video.uploader ||
-            video.authorId ||
-            "Unknown uploader",
-
-        thumbnail:
-            video.videoThumbnails?.[0]?.url ||
-            video.thumbnail ||
-            video.thumbnailUrl ||
-            "",
-
-        duration:
-            video.lengthSeconds ||
-            video.duration ||
-            0,
-
-        views:
-            video.viewCount ||
-            video.views ||
-            0,
-
-        published:
-            video.publishedText ||
-            "",
-
-        description:
-            video.description ||
-            ""
-    };
-}
-
-
-// ------------------------------------------------------------
-// 7. FORMAT NUMBERS
-// ------------------------------------------------------------
-
-function formatViews(number) {
-
-    if (!number) {
-        return "0 views";
-    }
-
-    number = Number(number);
+    const number = Number(views);
 
     if (Number.isNaN(number)) {
-        return "0 views";
+        return `${views} views`;
     }
 
     if (number >= 1000000000) {
@@ -279,65 +157,251 @@ function formatViews(number) {
 
 
 function formatDuration(seconds) {
+    if (!seconds) {
+        return "";
+    }
 
     seconds = Number(seconds);
 
-    if (!seconds || Number.isNaN(seconds)) {
+    if (Number.isNaN(seconds)) {
         return "";
     }
 
     const hours = Math.floor(seconds / 3600);
-
-    const minutes = Math.floor(
-        (seconds % 3600) / 60
-    );
-
-    const secs = Math.floor(
-        seconds % 60
-    );
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = Math.floor(seconds % 60);
 
     if (hours > 0) {
-
-        return (
-            hours +
-            ":" +
-            String(minutes).padStart(2, "0") +
-            ":" +
-            String(secs).padStart(2, "0")
-        );
-
+        return `${hours}:${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
     }
 
-    return (
-        minutes +
-        ":" +
-        String(secs).padStart(2, "0")
+    return `${minutes}:${String(secs).padStart(2, "0")}`;
+}
+
+
+function getThumbnail(video) {
+    if (video.videoThumbnails && video.videoThumbnails.length > 0) {
+        const preferred =
+            video.videoThumbnails.find(t => t.quality === "medium") ||
+            video.videoThumbnails.find(t => t.quality === "high") ||
+            video.videoThumbnails[0];
+
+        if (preferred && preferred.url) {
+            return preferred.url;
+        }
+    }
+
+    if (video.videoId) {
+        return `https://i.ytimg.com/vi/${encodeURIComponent(video.videoId)}/hqdefault.jpg`;
+    }
+
+    return "";
+}
+
+
+// ============================================================
+// BACKEND CALL
+// ============================================================
+
+async function backend(functionName, params = {}) {
+
+    console.log(
+        `🔌 Calling Back4App Cloud Function: ${functionName}`,
+        params
+    );
+
+    try {
+
+        const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => {
+                reject(
+                    new Error(
+                        `Back4App function "${functionName}" timed out after 15 seconds.`
+                    )
+                );
+            }, 15000);
+        });
+
+        const requestPromise = Parse.Cloud.run(
+            functionName,
+            params
+        );
+
+        const result = await Promise.race([
+            requestPromise,
+            timeoutPromise
+        ]);
+
+        console.log(
+            `🟢 Back4App "${functionName}" responded:`,
+            result
+        );
+
+        return result;
+
+    } catch (error) {
+
+        console.error(
+            `🔴 Back4App "${functionName}" failed:`,
+            error
+        );
+
+        let message = error?.message || String(error);
+
+        if (
+            message.toLowerCase().includes("unauthorized") ||
+            message.toLowerCase().includes("application")
+        ) {
+            message =
+                "Back4App rejected the request. Check your Application ID and JavaScript Key.";
+        }
+
+        throw new Error(message);
+    }
+}
+
+
+// ============================================================
+// BACKEND FUNCTIONS
+// ============================================================
+
+async function pingBackend() {
+    return await backend("ping");
+}
+
+
+async function getTrending() {
+    return await backend("getTrending");
+}
+
+
+async function searchVideos(query) {
+
+    if (!query || !query.trim()) {
+        return [];
+    }
+
+    return await backend(
+        "searchVideos",
+        {
+            query: query.trim()
+        }
     );
 }
 
 
-// ------------------------------------------------------------
-// 8. RENDER VIDEO CARDS
-// ------------------------------------------------------------
+async function getVideo(videoId) {
+
+    if (!videoId) {
+        throw new Error("No video ID was provided.");
+    }
+
+    return await backend(
+        "getVideo",
+        {
+            videoId: videoId
+        }
+    );
+}
+
+
+// ============================================================
+// VIDEO CARD
+// ============================================================
+
+function createVideoCard(video) {
+
+    const videoId = video.videoId;
+
+    if (!videoId) {
+        return "";
+    }
+
+    const title =
+        video.title ||
+        "Untitled piece of crap";
+
+    const author =
+        video.author ||
+        "Unknown uploader";
+
+    const thumbnail =
+        getThumbnail(video);
+
+    const views =
+        formatViews(video.viewCount);
+
+    const duration =
+        formatDuration(video.lengthSeconds);
+
+    return `
+        <article
+            class="video-card"
+            data-video-id="${escapeHTML(videoId)}"
+            style="cursor:pointer;"
+        >
+
+            <div class="thumbnail-wrapper">
+
+                <img
+                    class="thumbnail"
+                    src="${escapeHTML(thumbnail)}"
+                    alt="${escapeHTML(title)}"
+                    loading="lazy"
+                    onerror="this.style.display='none';"
+                >
+
+                ${
+                    duration
+                        ? `<span class="duration">${escapeHTML(duration)}</span>`
+                        : ""
+                }
+
+            </div>
+
+            <div class="video-info">
+
+                <h3 class="video-title">
+                    ${escapeHTML(title)}
+                </h3>
+
+                <div class="video-uploader">
+                    ${escapeHTML(author)}
+                </div>
+
+                <div class="video-meta">
+                    ${escapeHTML(views)}
+                </div>
+
+            </div>
+
+        </article>
+    `;
+}
+
+
+// ============================================================
+// RENDER VIDEOS
+// ============================================================
 
 function renderVideos(videoList) {
 
     if (!videosContainer) {
+        console.error("Could not find #videos.");
         return;
     }
 
-    videosContainer.innerHTML = "";
-
     if (!Array.isArray(videoList)) {
-
         console.error(
-            "Expected an array of videos but got:",
+            "Expected an array of videos but received:",
             videoList
         );
 
-        showError(
-            "💀 Back4App returned something that wasn't a video list."
-        );
+        videosContainer.innerHTML = `
+            <div style="padding:30px;">
+                💀 Pootube received garbage instead of videos.
+            </div>
+        `;
 
         return;
     }
@@ -345,243 +409,413 @@ function renderVideos(videoList) {
     if (videoList.length === 0) {
 
         videosContainer.innerHTML = `
-            <div class="empty-message">
-                <h2>💩 Nothing here.</h2>
-                <p>The sewer is currently empty.</p>
+            <div style="padding:30px;">
+                💩 Nothing here. The sewer is empty.
             </div>
         `;
 
         return;
     }
 
-
-    videoList.forEach(rawVideo => {
-
-        const video = normalizeVideo(rawVideo);
-
-        if (!video || !video.id) {
-            return;
-        }
+    videosContainer.innerHTML =
+        videoList
+            .map(createVideoCard)
+            .join("");
 
 
-        const card = document.createElement("div");
+    // Attach click events
 
-        card.className = "video-card";
+    const cards =
+        videosContainer.querySelectorAll(".video-card");
 
-
-        card.innerHTML = `
-
-            <div class="thumbnail-container">
-
-                ${
-                    video.thumbnail
-                    ?
-                    `
-                    <img
-                        class="video-thumbnail"
-                        src="${escapeHTML(video.thumbnail)}"
-                        alt=""
-                        loading="lazy"
-                        onerror="this.style.display='none'"
-                    >
-                    `
-                    :
-                    `
-                    <div class="no-thumbnail">
-                        💩
-                    </div>
-                    `
-                }
-
-                ${
-                    video.duration
-                    ?
-                    `
-                    <span class="duration">
-                        ${escapeHTML(
-                            formatDuration(video.duration)
-                        )}
-                    </span>
-                    `
-                    :
-                    ""
-                }
-
-            </div>
-
-
-            <div class="video-info">
-
-                <h3 class="video-title">
-                    ${escapeHTML(video.title)}
-                </h3>
-
-                <div class="video-author">
-                    ${escapeHTML(video.author)}
-                </div>
-
-                <div class="video-meta">
-                    ${escapeHTML(formatViews(video.views))}
-                    ${
-                        video.published
-                        ?
-                        " • " +
-                        escapeHTML(video.published)
-                        :
-                        ""
-                    }
-                </div>
-
-            </div>
-
-        `;
-
+    cards.forEach(card => {
 
         card.addEventListener(
             "click",
-            () => openVideo(video.id)
+            () => {
+
+                const videoId =
+                    card.dataset.videoId;
+
+                if (videoId) {
+                    openVideo(videoId);
+                }
+
+            }
         );
-
-
-        videosContainer.appendChild(card);
 
     });
 }
 
 
-// ------------------------------------------------------------
-// 9. LOAD HOME / TRENDING
-// ------------------------------------------------------------
+// ============================================================
+// HOME / TRENDING
+// ============================================================
 
 async function loadHome() {
+
+    console.log("🏠 Loading Pootube home...");
 
     showLoading(
         "🔌 Connecting to the Pootube sewer..."
     );
 
-    if (pageTitle) {
-        pageTitle.textContent = "Home";
-    }
-
-    if (pageSubtitle) {
-        pageSubtitle.textContent =
-            "Absolutely terrible videos, delivered through a questionable backend.";
-    }
-
-
     try {
 
-        console.log(
-            "📡 Requesting trending videos..."
-        );
+        if (pageTitle) {
+            pageTitle.textContent = "Home";
+        }
 
-        const result = await getTrending();
+        if (pageSubtitle) {
+            pageSubtitle.textContent =
+                "Fresh garbage from the internet.";
+        }
 
-        console.log(
-            "📺 Trending response:",
-            result
-        );
+        const videos =
+            await getTrending();
 
-
-        renderVideos(result);
+        renderVideos(videos);
 
         hideLoading();
 
-        showToast(
-            "💩 Sewer successfully loaded."
+        console.log(
+            `🟢 Loaded ${videos.length} videos.`
         );
 
     } catch (error) {
 
-        console.error(
-            "💀 Home loading failed:",
-            error
+        showError(
+            error.message ||
+            "Could not load Pootube."
         );
 
-        showError(
-            "Could not load Pootube: " +
-            (error.message || error)
-        );
     }
 }
 
 
-// ------------------------------------------------------------
-// 10. SEARCH
-// ------------------------------------------------------------
+// ============================================================
+// SEARCH
+// ============================================================
 
 async function performSearch(query) {
 
-    query = String(query || "").trim();
+    const cleaned =
+        query.trim();
 
-    if (!query) {
-
-        showToast(
-            "💩 You gotta type something."
-        );
-
+    if (!cleaned) {
+        await loadHome();
         return;
     }
 
-
-    showLoading(
-        `🔎 Searching the sewer for "${query}"...`
+    console.log(
+        `🔎 Searching Pootube for "${cleaned}"`
     );
 
-
-    if (pageTitle) {
-        pageTitle.textContent = "Search";
-    }
-
-    if (pageSubtitle) {
-        pageSubtitle.textContent =
-            `Results for "${query}"`;
-    }
-
+    showLoading(
+        `🔎 Searching for "${cleaned}"...`
+    );
 
     try {
 
-        console.log(
-            "🔎 Searching:",
-            query
-        );
+        if (pageTitle) {
+            pageTitle.textContent =
+                `Search: ${cleaned}`;
+        }
 
+        if (pageSubtitle) {
+            pageSubtitle.textContent =
+                "Results from the sewer.";
+        }
 
-        const result = await searchVideos(query);
+        const results =
+            await searchVideos(cleaned);
 
-
-        console.log(
-            "📺 Search response:",
-            result
-        );
-
-
-        renderVideos(result);
+        renderVideos(results);
 
         hideLoading();
 
         showToast(
-            "💩 Search complete."
+            `💩 Found ${results.length} results`
+        );
+
+    } catch (error) {
+
+        showError(
+            error.message ||
+            "Search failed."
+        );
+
+    }
+}
+
+
+// ============================================================
+// VIDEO PLAYER
+// ============================================================
+
+async function openVideo(videoId) {
+
+    console.log(
+        "▶️ Opening video:",
+        videoId
+    );
+
+    showToast(
+        "📺 Loading video..."
+    );
+
+    try {
+
+        const video =
+            await getVideo(videoId);
+
+        console.log(
+            "🎬 Video information:",
+            video
+        );
+
+        if (playerTitle) {
+            playerTitle.textContent =
+                video.title ||
+                "Untitled video";
+        }
+
+        if (playerUploader) {
+            playerUploader.textContent =
+                video.author ||
+                "Unknown uploader";
+        }
+
+
+        // ----------------------------------------------------
+        // Find a playable video URL
+        // ----------------------------------------------------
+
+        let selectedURL = null;
+
+
+        // Normal progressive MP4 streams
+
+        if (
+            Array.isArray(video.formatStreams) &&
+            video.formatStreams.length > 0
+        ) {
+
+            const mp4 =
+                video.formatStreams.find(
+                    stream =>
+                        stream.type &&
+                        stream.type.includes("video/mp4") &&
+                        stream.url
+                );
+
+            if (mp4) {
+                selectedURL = mp4.url;
+            }
+
+        }
+
+
+        // Adaptive streams fallback
+
+        if (
+            !selectedURL &&
+            Array.isArray(video.adaptiveFormats)
+        ) {
+
+            const mp4 =
+                video.adaptiveFormats.find(
+                    stream =>
+                        stream.type &&
+                        stream.type.includes("video/mp4") &&
+                        stream.url
+                );
+
+            if (mp4) {
+                selectedURL = mp4.url;
+            }
+
+        }
+
+
+        // ----------------------------------------------------
+        // Use direct stream
+        // ----------------------------------------------------
+
+        if (selectedURL && player) {
+
+            console.log(
+                "🎥 Using direct video stream."
+            );
+
+            player.src = selectedURL;
+
+            if (playerModal) {
+                playerModal.style.display = "flex";
+            }
+
+            try {
+                await player.play();
+            } catch (playError) {
+
+                console.warn(
+                    "Browser prevented autoplay:",
+                    playError
+                );
+
+            }
+
+            return;
+        }
+
+
+        // ----------------------------------------------------
+        // Fallback to YouTube embed
+        // ----------------------------------------------------
+
+        console.warn(
+            "No direct MP4 stream found."
+        );
+
+
+        if (player && videoId) {
+
+            /*
+             * If your player element is an iframe,
+             * this will work as a fallback.
+             */
+
+            if (
+                player.tagName &&
+                player.tagName.toLowerCase() === "iframe"
+            ) {
+
+                player.src =
+                    `https://www.youtube.com/embed/${encodeURIComponent(videoId)}`;
+
+                if (playerModal) {
+                    playerModal.style.display = "flex";
+                }
+
+                return;
+            }
+
+        }
+
+
+        throw new Error(
+            "The backend found the video, but no playable stream was returned."
         );
 
     } catch (error) {
 
         console.error(
-            "💀 Search failed:",
+            "🔴 Video failed:",
             error
         );
 
         showError(
-            "Search failed: " +
-            (error.message || error)
+            error.message ||
+            "Could not open video."
         );
+
     }
 }
 
 
-// ------------------------------------------------------------
-// 11. SEARCH FORM
-// ------------------------------------------------------------
+// ============================================================
+// CLOSE PLAYER
+// ============================================================
+
+function closePlayer() {
+
+    if (player) {
+
+        try {
+            player.pause();
+        } catch (_) {}
+
+        player.removeAttribute("src");
+
+        try {
+            player.load();
+        } catch (_) {}
+
+    }
+
+    if (playerModal) {
+        playerModal.style.display = "none";
+    }
+
+}
+
+
+// ============================================================
+// RANDOM VIDEO
+// ============================================================
+
+async function randomVideo() {
+
+    console.log(
+        "🎲 Random Crap activated."
+    );
+
+    showToast(
+        "🎲 Searching the sewer..."
+    );
+
+    try {
+
+        const videos =
+            await getTrending();
+
+        if (
+            !Array.isArray(videos) ||
+            videos.length === 0
+        ) {
+
+            throw new Error(
+                "There are no videos to randomly select."
+            );
+
+        }
+
+        const randomIndex =
+            Math.floor(
+                Math.random() * videos.length
+            );
+
+        const selected =
+            videos[randomIndex];
+
+        if (selected.videoId) {
+
+            openVideo(
+                selected.videoId
+            );
+
+        } else {
+
+            throw new Error(
+                "Random video had no ID."
+            );
+
+        }
+
+    } catch (error) {
+
+        showError(
+            error.message ||
+            "Random Crap failed."
+        );
+
+    }
+}
+
+
+// ============================================================
+// SEARCH FORM
+// ============================================================
 
 if (searchForm) {
 
@@ -591,364 +825,47 @@ if (searchForm) {
 
             event.preventDefault();
 
-            await performSearch(
-                searchInput?.value
-            );
+            const query =
+                searchInput
+                    ? searchInput.value
+                    : "";
+
+            await performSearch(query);
 
         }
     );
+
 }
 
 
-// ------------------------------------------------------------
-// 12. RANDOM CRAP BUTTON
-// ------------------------------------------------------------
+// ============================================================
+// RANDOM BUTTON
+// ============================================================
 
 if (randomButton) {
 
     randomButton.addEventListener(
         "click",
-        async () => {
-
-            showToast(
-                "🎲 Throwing you into random crap..."
-            );
-
-
-            try {
-
-                const videos =
-                    await getTrending();
-
-
-                if (
-                    !Array.isArray(videos) ||
-                    videos.length === 0
-                ) {
-
-                    throw new Error(
-                        "No videos were returned."
-                    );
-                }
-
-
-                const validVideos =
-                    videos
-                        .map(normalizeVideo)
-                        .filter(video =>
-                            video &&
-                            video.id
-                        );
-
-
-                if (validVideos.length === 0) {
-
-                    throw new Error(
-                        "No playable videos were returned."
-                    );
-                }
-
-
-                const randomVideo =
-                    validVideos[
-                        Math.floor(
-                            Math.random() *
-                            validVideos.length
-                        )
-                    ];
-
-
-                await openVideo(
-                    randomVideo.id
-                );
-
-            } catch (error) {
-
-                console.error(
-                    "Random crap failed:",
-                    error
-                );
-
-                showToast(
-                    "💀 The random crap machine broke."
-                );
-            }
-
-        }
+        randomVideo
     );
+
 }
 
 
-// ------------------------------------------------------------
-// 13. OPEN VIDEO
-// ------------------------------------------------------------
+// ============================================================
+// PLAYER MODAL CLICKING
+// ============================================================
 
-async function openVideo(videoId) {
-
-    if (!videoId) {
-
-        showToast(
-            "💀 This video has no ID."
-        );
-
-        return;
-    }
-
-
-    console.log(
-        "▶️ Opening video:",
-        videoId
-    );
-
-
-    showToast(
-        "📺 Fetching video..."
-    );
-
-
-    try {
-
-        const video =
-            await getVideo(videoId);
-
-
-        console.log(
-            "🎬 Video information:",
-            video
-        );
-
-
-        if (!video) {
-
-            throw new Error(
-                "Back4App returned no video data."
-            );
-        }
-
-
-        const title =
-            video.title ||
-            "Untitled Crap";
-
-
-        const uploader =
-            video.author ||
-            video.uploader ||
-            "Unknown uploader";
-
-
-        // ----------------------------------------------------
-        // Find a playable video URL.
-        // ----------------------------------------------------
-
-        let selectedURL = null;
-
-
-        // First look for normal MP4 format streams.
-        if (
-            Array.isArray(
-                video.formatStreams
-            )
-        ) {
-
-            const mp4Streams =
-                video.formatStreams.filter(
-                    stream => {
-
-                        return (
-                            stream &&
-                            stream.url &&
-                            (
-                                !stream.type ||
-                                stream.type.includes(
-                                    "video/mp4"
-                                )
-                            )
-                        );
-
-                    }
-                );
-
-
-            // Prefer a reasonably sized stream.
-            const preferred =
-                mp4Streams.find(
-                    stream =>
-                        stream.resolution === "360p"
-                ) ||
-                mp4Streams.find(
-                    stream =>
-                        stream.resolution === "480p"
-                ) ||
-                mp4Streams[0];
-
-
-            if (preferred) {
-                selectedURL =
-                    preferred.url;
-            }
-        }
-
-
-        // ----------------------------------------------------
-        // Fallback to adaptive MP4.
-        // ----------------------------------------------------
-
-        if (
-            !selectedURL &&
-            Array.isArray(
-                video.adaptiveFormats
-            )
-        ) {
-
-            const adaptive =
-                video.adaptiveFormats.filter(
-                    stream => {
-
-                        return (
-                            stream &&
-                            stream.url &&
-                            stream.type &&
-                            stream.type.includes(
-                                "video/mp4"
-                            )
-                        );
-
-                    }
-                );
-
-
-            if (adaptive.length > 0) {
-
-                selectedURL =
-                    adaptive[0].url;
-            }
-        }
-
-
-        // ----------------------------------------------------
-        // If nothing playable was returned.
-        // ----------------------------------------------------
-
-        if (!selectedURL) {
-
-            console.error(
-                "No playable stream found.",
-                video
-            );
-
-
-            throw new Error(
-                "No playable MP4 stream was returned by Invidious."
-            );
-        }
-
-
-        // ----------------------------------------------------
-        // Set player information.
-        // ----------------------------------------------------
-
-        if (playerTitle) {
-
-            playerTitle.textContent =
-                title;
-        }
-
-
-        if (playerUploader) {
-
-            playerUploader.textContent =
-                uploader;
-        }
-
-
-        if (player) {
-
-            player.src =
-                selectedURL;
-
-            player.load();
-
-            player.play().catch(
-                error => {
-
-                    console.warn(
-                        "Autoplay was blocked:",
-                        error
-                    );
-
-                }
-            );
-        }
-
-
-        // ----------------------------------------------------
-        // Open modal.
-        // ----------------------------------------------------
-
-        if (playerModal) {
-
-            playerModal.style.display =
-                "flex";
-        }
-
-
-        showToast(
-            "💩 Enjoy your garbage."
-        );
-
-    } catch (error) {
-
-        console.error(
-            "💀 Video failed to load:",
-            error
-        );
-
-
-        showToast(
-            "💀 Couldn't play that video."
-        );
-
-    }
-}
-
-
-// ------------------------------------------------------------
-// 14. CLOSE PLAYER
-// ------------------------------------------------------------
-
-function closePlayer() {
-
-    if (player) {
-
-        player.pause();
-
-        player.removeAttribute(
-            "src"
-        );
-
-        player.load();
-    }
-
-
-    if (playerModal) {
-
-        playerModal.style.display =
-            "none";
-    }
-}
-
-
-// Close when clicking outside the player.
 if (playerModal) {
 
     playerModal.addEventListener(
         "click",
         event => {
 
+            // Close when clicking the modal background
+
             if (
-                event.target ===
-                playerModal
+                event.target === playerModal
             ) {
 
                 closePlayer();
@@ -957,16 +874,22 @@ if (playerModal) {
 
         }
     );
+
 }
 
 
-// ESC closes the player.
+// ============================================================
+// ESC KEY CLOSES PLAYER
+// ============================================================
+
 document.addEventListener(
     "keydown",
     event => {
 
         if (
-            event.key === "Escape"
+            event.key === "Escape" &&
+            playerModal &&
+            playerModal.style.display !== "none"
         ) {
 
             closePlayer();
@@ -977,9 +900,9 @@ document.addEventListener(
 );
 
 
-// ------------------------------------------------------------
-// 15. SIDEBAR NAVIGATION
-// ------------------------------------------------------------
+// ============================================================
+// SIDEBAR
+// ============================================================
 
 document.querySelectorAll(
     "[data-page]"
@@ -992,59 +915,16 @@ document.querySelectorAll(
             const page =
                 item.dataset.page;
 
-
-            // Home
             if (page === "home") {
 
                 await loadHome();
 
-                return;
             }
 
+            else if (page === "trending") {
 
-            // Trending
-            if (page === "trending") {
+                await loadHome();
 
-                showLoading(
-                    "🔥 Getting the hottest garbage..."
-                );
-
-
-                if (pageTitle) {
-                    pageTitle.textContent =
-                        "Trending";
-                }
-
-                if (pageSubtitle) {
-                    pageSubtitle.textContent =
-                        "The finest crap currently circulating through the sewer.";
-                }
-
-
-                try {
-
-                    const result =
-                        await getTrending();
-
-
-                    renderVideos(result);
-
-                    hideLoading();
-
-                } catch (error) {
-
-                    console.error(
-                        error
-                    );
-
-                    showError(
-                        "Trending failed: " +
-                        (error.message || error)
-                    );
-
-                }
-
-                return;
             }
 
         }
@@ -1053,28 +933,29 @@ document.querySelectorAll(
 });
 
 
-// ------------------------------------------------------------
-// 16. BACKEND DIAGNOSTIC
-// ------------------------------------------------------------
+// ============================================================
+// BACKEND CONNECTION TEST
+// ============================================================
 
 async function testBackend() {
 
     console.log(
-        "🧪 Testing Pootube backend..."
+        "🧪 Testing Back4App connection..."
     );
-
 
     try {
 
         const result =
             await pingBackend();
 
-
         console.log(
             "🟢 PING SUCCESS:",
             result
         );
 
+        showToast(
+            "🟢 Pootube backend is alive!"
+        );
 
         return true;
 
@@ -1085,28 +966,52 @@ async function testBackend() {
             error
         );
 
+        showError(
+            "Back4App connection failed: " +
+            error.message
+        );
 
         return false;
     }
+
 }
 
 
-// ------------------------------------------------------------
-// 17. STARTUP
-// ------------------------------------------------------------
+// ============================================================
+// STARTUP
+// ============================================================
 
 async function startup() {
 
     console.log(
-        "💩 Pootube starting..."
+        "💩 ==============================="
+    );
+
+    console.log(
+        "💩 POOTUBE STARTING"
+    );
+
+    console.log(
+        "💩 ==============================="
     );
 
 
-    // First test GitHub → Back4App.
-    showLoading(
-        "🔌 Connecting to Pootube backend..."
-    );
+    // Check that the user replaced the keys
 
+    if (
+        BACK4APP_APP_ID === "YOUR_APPLICATION_ID" ||
+        BACK4APP_JS_KEY === "YOUR_JAVASCRIPT_KEY"
+    ) {
+
+        showError(
+            "You haven't entered your Back4App Application ID and JavaScript Key yet."
+        );
+
+        return;
+    }
+
+
+    // Test the backend BEFORE trying to load videos
 
     const backendOnline =
         await testBackend();
@@ -1114,28 +1019,23 @@ async function startup() {
 
     if (!backendOnline) {
 
-        showError(
-            "🔴 Pootube can't connect to Back4App. Check the browser console."
+        console.error(
+            "💀 Startup stopped because the backend failed."
         );
 
         return;
     }
 
 
-    console.log(
-        "🟢 Backend is online."
-    );
+    // Backend works — now load videos
 
-
-    showLoading(
-        "🔥 Backend online. Loading crap..."
-    );
-
-
-    // Only attempt Invidious AFTER ping succeeds.
     await loadHome();
 
 }
 
 
-//
+// ============================================================
+// START POOTUBE
+// ============================================================
+
+startup();
