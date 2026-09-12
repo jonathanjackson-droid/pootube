@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <meta name="description" content="Pootube - the world's least necessary video platform.">
+
+    <title>Pootube 💩</title>
+
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+<header class="topbar">
+
+    <button class="logo" onclick="loadHome()" aria-label="Pootube home">
+        💩 <span>Pootube</span>
+    </button>
+
+    <form id="searchForm">
+        <input
+            id="searchInput"
+            type="search"
+            placeholder="Search Pootube..."
+            autocomplete="off"
+        >
+
+        <button type="submit">
+            🔎
+        </button>
+    </form>
+
+    <button class="random-btn" onclick="randomVideo()">
+        🎲 Random Crap
+    </button>
+
+</header>
+
+
+<div class="layout">
+
+    <aside class="sidebar">
+
+        <button onclick="loadHome()">🏠 Home</button>
+
+        <button onclick="loadTrending()">🔥 Trending</button>
+
+        <button onclick="showMessage('Subscriptions are coming soon 💩')">
+            📺 Subscriptions
+        </button>
+
+        <button onclick="showMessage('History is coming soon 💩')">
+            🕘 History
+        </button>
+
+        <button onclick="showMessage('Liked videos are coming soon 💩')">
+            👍 Liked
+        </button>
+
+        <hr>
+
+        <h4>POOTUBE™</h4>
+
+        <button onclick="showMessage('Pootlists are coming soon 💩')">
+            💩 Pootlists
+        </button>
+
+        <button onclick="showMessage('Settings are coming soon 💩')">
+            ⚙ Settings
+        </button>
+
+
+        <div class="afton">
+            <div class="dancing">💃</div>
+            <strong>WILLIAM AFTON</strong>
+            <small>is dancing.</small>
+        </div>
+
+    </aside>
+
+
+    <main>
+
+        <section class="welcome">
+
+            <div>
+                <small>WELCOME TO THE SEWER</small>
+
+                <h1>Pootube 💩</h1>
+
+                <p>
+                    The world's least necessary video platform.
+                </p>
+            </div>
+
+            <div class="big-poop">
+                💩
+            </div>
+
+        </section>
+
+
+        <div class="section-heading">
+
+            <div>
+                <h2 id="pageTitle">Trending</h2>
+
+                <p id="pageSubtitle">
+                    Today's hottest crap.
+                </p>
+            </div>
+
+        </div>
+
+
+        <div id="status" class="status">
+            💩 Loading...
+        </div>
+
+
+        <section
+            id="videos"
+            class="video-grid"
+        ></section>
+
+    </main>
+
+</div>
+
+
+<!-- VIDEO PLAYER -->
+
+<div
+    id="playerModal"
+    class="player-modal hidden"
+>
+
+    <div class="player-box">
+
+        <div class="player-header">
+
+            <div>
+                💩 <strong>Pootube</strong>
+            </div>
+
+            <button onclick="closePlayer()">
+                ✕
+            </button>
+
+        </div>
+
+
+        <video
+            id="player"
+            controls
+            playsinline
+        ></video>
+
+
+        <div class="player-info">
+
+            <h2 id="playerTitle">
+                Loading...
+            </h2>
+
+            <p id="playerUploader"></p>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<div id="toast" class="toast hidden"></div>
+
+
+<script src="app.js"></script>
+
+</body>
+</html>
