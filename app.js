@@ -1,46 +1,107 @@
-const API = "https://api.piped.yt";
+// ============================================================
+// POOTUBE
+// Custom YouTube frontend that looks like shit on a windshield
+// ============================================================
+
+// Piped public API instances.
+// These are taken from Piped's current public-instance list.
+// The app will automatically try them in order.
+const PIPED_INSTANCES = [
+    "https://pipedapi.kavin.rocks",
+    "https://pipedapi.leptons.xyz",
+    "https://pipedapi.nosebs.ru",
+    "https://pipedapi-libre.kavin.rocks",
+    "https://piped-api.privacy.com.de",
+    "https://pipedapi.adminforge.de",
+    "https://api.piped.yt",
+    "https://pipedapi.drgns.space",
+    "https://pipedapi.owo.si",
+    "https://pipedapi.ducks.party",
+    "https://piped-api.codespace.cz",
+    "https://pipedapi.reallyaweso.me",
+    "https://api.piped.private.coffee",
+    "https://pipedapi.darkness.services",
+    "https://pipedapi.orangenet.cc"
+];
+
+// The currently working instance.
+let ACTIVE_API = null;
+
+// ============================================================
+// DOM
+// ============================================================
 
 const videos = document.getElementById("videos");
 const status = document.getElementById("status");
-
 const searchForm = document.getElementById("searchForm");
 const searchInput = document.getElementById("searchInput");
 
 const playerModal = document.getElementById("playerModal");
 const player = document.getElementById("player");
-
 const playerTitle = document.getElementById("playerTitle");
 const playerUploader = document.getElementById("playerUploader");
 
-
-/* ============================================================
-   API
-   ============================================================ */
+// ============================================================
+// API
+// ============================================================
 
 async function api(endpoint) {
 
-    const response = await fetch(
-        API + endpoint,
-        {
-            headers: {
-                "Accept": "application/json"
-            }
-        }
-    );
+    // If we already found an instance, use it first.
+    const instances = ACTIVE_API
+        ? [ACTIVE_API, ...PIPED_INSTANCES.filter(x => x !== ACTIVE_API)]
+        : [...PIPED_INSTANCES];
 
-    if (!response.ok) {
-        throw new Error(
-            `Piped returned HTTP ${response.status}`
-        );
+    let lastError = null;
+
+    for (const instance of instances) {
+
+        try {
+
+            console.log("💩 Trying Piped instance:", instance);
+
+            const response = await fetch(instance + endpoint, {
+                headers: {
+                    "Accept": "application/json"
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(
+                    `${instance} returned HTTP ${response.status}`
+                );
+            }
+
+            const data = await response.json();
+
+            // Success!
+            ACTIVE_API = instance;
+
+            console.log("✅ Pootube connected to:", ACTIVE_API);
+
+            return data;
+
+        } catch (error) {
+
+            console.warn(
+                "💀 Piped instance failed:",
+                instance,
+                error
+            );
+
+            lastError = error;
+        }
     }
 
-    return await response.json();
+    throw new Error(
+        "Every Piped instance failed. Last error: " +
+        (lastError?.message || "Unknown error")
+    );
 }
 
-
-/* ============================================================
-   GET VIDEO ID
-   ============================================================ */
+// ============================================================
+// HELPERS
+// ============================================================
 
 function getVideoId(url) {
 
@@ -58,14 +119,9 @@ function getVideoId(url) {
     } catch {
 
         return null;
-
     }
 }
 
-
-/* ============================================================
-   HTML ESCAPING
-   ============================================================ */
 
 function escapeHTML(value = "") {
 
@@ -78,44 +134,25 @@ function escapeHTML(value = "") {
 }
 
 
-/* ============================================================
-   VIEW FORMATTING
-   ============================================================ */
-
 function formatViews(views) {
 
-    if (!views) {
-        return "No views";
-    }
+    if (!views) return "No views";
 
-    if (views >= 1000000000) {
-        return (
-            (views / 1000000000).toFixed(1)
-            + "B views"
-        );
-    }
+    if (views >= 1000000000)
+        return (views / 1000000000).toFixed(1) + "B views";
 
-    if (views >= 1000000) {
-        return (
-            (views / 1000000).toFixed(1)
-            + "M views"
-        );
-    }
+    if (views >= 1000000)
+        return (views / 1000000).toFixed(1) + "M views";
 
-    if (views >= 1000) {
-        return (
-            (views / 1000).toFixed(1)
-            + "K views"
-        );
-    }
+    if (views >= 1000)
+        return (views / 1000).toFixed(1) + "K views";
 
     return views + " views";
 }
 
-
-/* ============================================================
-   RENDER VIDEOS
-   ============================================================ */
+// ============================================================
+// VIDEO GRID
+// ============================================================
 
 function renderVideos(results) {
 
@@ -133,21 +170,17 @@ function renderVideos(results) {
         return;
     }
 
-
     for (const video of results) {
 
         const id = getVideoId(video.url);
 
         if (!id) continue;
 
-
         const card = document.createElement("article");
 
         card.className = "video-card";
 
-
         card.innerHTML = `
-
             <img
                 class="thumbnail"
                 src="${escapeHTML(video.thumbnail || "")}"
@@ -158,7 +191,7 @@ function renderVideos(results) {
             <div class="video-info">
 
                 <div class="video-title">
-                    ${escapeHTML(video.title)}
+                    ${escapeHTML(video.title || "Untitled Crap")}
                 </div>
 
                 <div class="video-meta">
@@ -171,32 +204,29 @@ function renderVideos(results) {
 
                     ${formatViews(video.views)}
 
-                    ${video.uploadedDate
-                        ? " • " + escapeHTML(video.uploadedDate)
-                        : ""
+                    ${
+                        video.uploadedDate
+                            ? " • " + escapeHTML(video.uploadedDate)
+                            : ""
                     }
 
                 </div>
 
             </div>
-
         `;
-
 
         card.addEventListener(
             "click",
             () => openVideo(id, video)
         );
 
-
         videos.appendChild(card);
     }
 }
 
-
-/* ============================================================
-   TRENDING
-   ============================================================ */
+// ============================================================
+// TRENDING
+// ============================================================
 
 async function loadTrending() {
 
@@ -210,25 +240,23 @@ async function loadTrending() {
         "🔥 Finding today's hottest crap..."
     );
 
-
     try {
 
-        const data =
-            await api("/trending?region=US");
+        const data = await api(
+            "/trending?region=US"
+        );
 
         renderVideos(data);
 
     } catch (error) {
 
         showError(error);
-
     }
 }
 
-
-/* ============================================================
-   SEARCH
-   ============================================================ */
+// ============================================================
+// SEARCH
+// ============================================================
 
 searchForm.addEventListener(
     "submit",
@@ -241,18 +269,15 @@ searchForm.addEventListener(
 
         if (!query) return;
 
-
         document.getElementById("pageTitle").textContent =
             `Search: ${query}`;
 
         document.getElementById("pageSubtitle").textContent =
             "Searching the sewer...";
 
-
         showLoading(
             "💩 Searching the sewer..."
         );
-
 
         try {
 
@@ -265,27 +290,22 @@ searchForm.addEventListener(
         } catch (error) {
 
             showError(error);
-
         }
-
     }
 );
 
-
-/* ============================================================
-   HOME
-   ============================================================ */
+// ============================================================
+// HOME
+// ============================================================
 
 function loadHome() {
 
     loadTrending();
-
 }
 
-
-/* ============================================================
-   PLAYER
-   ============================================================ */
+// ============================================================
+// VIDEO PLAYER
+// ============================================================
 
 async function openVideo(id, info = {}) {
 
@@ -301,67 +321,57 @@ async function openVideo(id, info = {}) {
 
     player.load();
 
-
     try {
+
+        console.log(
+            "🎬 Getting stream information for:",
+            id
+        );
 
         const data =
             await api(`/streams/${id}`);
 
-
-        /*
-         * Prefer a normal MP4 stream containing BOTH
-         * video and audio.
-         *
-         * videoOnly === false is important because
-         * video-only streams have no audio track.
-         */
-
         const streams =
             (data.videoStreams || [])
-                .filter(
-                    stream =>
-                        stream.videoOnly === false &&
-                        stream.mimeType === "video/mp4"
+
+                // We want streams containing BOTH
+                // video and audio.
+                .filter(stream =>
+                    stream.videoOnly === false &&
+                    stream.mimeType === "video/mp4"
                 )
+
+                // Highest resolution first.
                 .sort(
                     (a, b) =>
                         (b.height || 0) -
                         (a.height || 0)
                 );
 
-
         if (!streams.length) {
 
             throw new Error(
                 "No compatible MP4 stream was returned."
             );
-
         }
 
-
-        /*
-         * Pick up to 1080p if available.
-         * Otherwise use the highest available stream.
-         */
-
+        // Prefer 1080p or lower.
         const stream =
             streams.find(
                 stream =>
                     (stream.height || 0) <= 1080
             ) || streams[0];
 
+        console.log(
+            "📺 Selected stream:",
+            stream
+        );
 
         player.src = stream.url;
 
         player.load();
 
-        player.play().catch(() => {
-            /*
-             * Browsers may block autoplay.
-             * The user can simply press Play.
-             */
-        });
-
+        player.play().catch(() => {});
 
     } catch (error) {
 
@@ -372,14 +382,12 @@ async function openVideo(id, info = {}) {
 
         playerUploader.textContent =
             error.message;
-
     }
 }
 
-
-/* ============================================================
-   CLOSE PLAYER
-   ============================================================ */
+// ============================================================
+// CLOSE PLAYER
+// ============================================================
 
 function closePlayer() {
 
@@ -392,10 +400,9 @@ function closePlayer() {
     playerModal.classList.add("hidden");
 }
 
-
-/* ============================================================
-   RANDOM VIDEO
-   ============================================================ */
+// ============================================================
+// RANDOM CRAP
+// ============================================================
 
 async function randomVideo() {
 
@@ -404,9 +411,7 @@ async function randomVideo() {
         const data =
             await api("/trending?region=US");
 
-
         if (!data.length) return;
-
 
         const video =
             data[
@@ -415,28 +420,23 @@ async function randomVideo() {
                 )
             ];
 
-
         const id =
             getVideoId(video.url);
-
 
         if (id) {
 
             openVideo(id, video);
-
         }
 
     } catch (error) {
 
         showError(error);
-
     }
 }
 
-
-/* ============================================================
-   LOADING
-   ============================================================ */
+// ============================================================
+// UI STATUS
+// ============================================================
 
 function showLoading(message) {
 
@@ -448,10 +448,6 @@ function showLoading(message) {
 }
 
 
-/* ============================================================
-   ERROR
-   ============================================================ */
-
 function showError(error) {
 
     console.error(error);
@@ -462,9 +458,13 @@ function showError(error) {
         <strong>
             💀 Pootube fell into the sewer.
         </strong>
+
         <br><br>
+
         ${escapeHTML(error.message)}
+
         <br><br>
+
         <button onclick="loadHome()">
             🔄 Try Again
         </button>
@@ -473,10 +473,6 @@ function showError(error) {
     status.classList.remove("hidden");
 }
 
-
-/* ============================================================
-   COMING SOON
-   ============================================================ */
 
 function showMessage(message) {
 
@@ -487,17 +483,15 @@ function showMessage(message) {
 
     toast.classList.remove("hidden");
 
-
     setTimeout(
         () => toast.classList.add("hidden"),
         2500
     );
 }
 
-
-/* ============================================================
-   KEYBOARD
-   ============================================================ */
+// ============================================================
+// KEYBOARD
+// ============================================================
 
 document.addEventListener(
     "keydown",
@@ -509,15 +503,12 @@ document.addEventListener(
         ) {
 
             closePlayer();
-
         }
-
     }
 );
 
-
-/* ============================================================
-   START POOTUBE
-   ============================================================ */
+// ============================================================
+// START POOTUBE
+// ============================================================
 
 loadHome();
