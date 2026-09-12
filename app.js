@@ -5,18 +5,16 @@
 
 const INVIDIOUS_INSTANCES = [
     "https://inv.nadeko.net",
-    "https://yewtu.be",
     "https://invidious.nerdvpn.de",
-    "https://invidious.private.coffee",
-    "https://inv.tux.pizza",
-    "https://invidious.nerdvpn.de"
+    "https://yt.chocolatemoo53.com",
+    "https://invidious.tiekoetter.com"
 ];
 
 let ACTIVE_INSTANCE = null;
 
 
 // ============================================================
-// DOM
+// DOM ELEMENTS
 // ============================================================
 
 const videos = document.getElementById("videos");
@@ -33,7 +31,7 @@ const playerUploader = document.getElementById("playerUploader");
 
 
 // ============================================================
-// INVIDIOUS API
+// API REQUEST
 // ============================================================
 
 async function api(endpoint) {
@@ -47,30 +45,41 @@ async function api(endpoint) {
         ]
         : [...INVIDIOUS_INSTANCES];
 
-    let lastError = null;
+    const errors = [];
 
     for (const instance of instances) {
 
         try {
 
             console.log(
-                "💩 Trying Invidious:",
+                "💩 Pootube trying:",
                 instance
             );
+
+            const controller = new AbortController();
+
+            const timeout = setTimeout(() => {
+                controller.abort();
+            }, 10000);
 
             const response = await fetch(
                 instance + endpoint,
                 {
+                    method: "GET",
+                    mode: "cors",
                     headers: {
                         "Accept": "application/json"
-                    }
+                    },
+                    signal: controller.signal
                 }
             );
+
+            clearTimeout(timeout);
 
             if (!response.ok) {
 
                 throw new Error(
-                    `${instance} returned HTTP ${response.status}`
+                    `HTTP ${response.status}`
                 );
             }
 
@@ -87,26 +96,32 @@ async function api(endpoint) {
 
         } catch (error) {
 
+            const message =
+                error.name === "AbortError"
+                    ? "Timed out"
+                    : error.message || "Unknown error";
+
             console.warn(
-                "💀 Invidious instance failed:",
+                "💀 Instance failed:",
                 instance,
-                error
+                message
             );
 
-            lastError = error;
+            errors.push(
+                `${instance}: ${message}`
+            );
         }
     }
 
     throw new Error(
-        "Every Invidious instance failed. " +
-        "Last error: " +
-        (lastError?.message || "Unknown error")
+        "Every Invidious instance failed.\n\n" +
+        errors.join("\n")
     );
 }
 
 
 // ============================================================
-// HELPERS
+// HTML ESCAPING
 // ============================================================
 
 function escapeHTML(value = "") {
@@ -119,6 +134,10 @@ function escapeHTML(value = "") {
         .replaceAll("'", "&#039;");
 }
 
+
+// ============================================================
+// VIEW COUNT
+// ============================================================
 
 function formatViews(views) {
 
@@ -151,6 +170,10 @@ function formatViews(views) {
 }
 
 
+// ============================================================
+// THUMBNAILS
+// ============================================================
+
 function getThumbnail(video) {
 
     if (
@@ -158,14 +181,12 @@ function getThumbnail(video) {
         video.videoThumbnails.length > 0
     ) {
 
-        // Prefer the largest thumbnail.
         const thumbnails =
-            [...video.videoThumbnails]
-                .sort(
-                    (a, b) =>
-                        (b.width || 0) -
-                        (a.width || 0)
-                );
+            [...video.videoThumbnails].sort(
+                (a, b) =>
+                    (b.width || 0) -
+                    (a.width || 0)
+            );
 
         return thumbnails[0].url;
     }
@@ -175,7 +196,7 @@ function getThumbnail(video) {
 
 
 // ============================================================
-// RENDER VIDEOS
+// RENDER VIDEO CARDS
 // ============================================================
 
 function renderVideos(results) {
@@ -197,10 +218,12 @@ function renderVideos(results) {
         return;
     }
 
+    let rendered = 0;
+
     for (const video of results) {
 
-        // Search results can contain channels,
-        // playlists, etc.
+        // Search results contain videos,
+        // playlists, channels, etc.
         if (
             video.type &&
             video.type !== "video"
@@ -265,10 +288,23 @@ function renderVideos(results) {
 
         card.addEventListener(
             "click",
-            () => openVideo(video.videoId, video)
+            () => openVideo(
+                video.videoId,
+                video
+            )
         );
 
         videos.appendChild(card);
+
+        rendered++;
+    }
+
+    if (rendered === 0) {
+
+        status.textContent =
+            "💩 Invidious returned stuff, but none of it was videos.";
+
+        status.classList.remove("hidden");
     }
 }
 
@@ -361,17 +397,16 @@ searchForm.addEventListener(
 // ============================================================
 
 function loadHome() {
-
     loadTrending();
 }
 
 
 // ============================================================
-// VIDEO PLAYER
+// OPEN VIDEO
 // ============================================================
 
 async function openVideo(
-    id,
+    videoId,
     info = {}
 ) {
 
@@ -394,41 +429,102 @@ async function openVideo(
     try {
 
         console.log(
-            "🎬 Getting video information:",
-            id
+            "🎬 Loading video:",
+            videoId
         );
 
         const data = await api(
             `/api/v1/videos/${encodeURIComponent(
-                id
+                videoId
             )}?region=US`
         );
 
 
         // ----------------------------------------------------
-        // First try normal format streams.
-        // These usually contain both video and audio.
+        // Normal MP4 streams
         // ----------------------------------------------------
 
         let streams =
-            Array.isArray(
-                data.formatStreams
-            )
+            Array.isArray(data.formatStreams)
                 ? data.formatStreams
                 : [];
 
 
-        streams =
-            streams
-                .filter(stream => {
+        streams = streams
+            .filter(stream =>
+                stream.url &&
+                (
+                    stream.container === "mp4" ||
+                    (
+                        stream.type &&
+                        stream.type.includes(
+                            "video/mp4"
+                        )
+                    )
+                )
+            )
+            .sort((a, b) => {
 
-                    return (
-                        stream.container === "mp4" &&
-                        stream.url
+                const aQuality =
+                    parseInt(
+                        a.qualityLabel ||
+                        a.quality ||
+                        "0"
                     );
-                })
-                .sort(
-                    (a, b) => {
+
+                const bQuality =
+                    parseInt(
+                        b.qualityLabel ||
+                        b.quality ||
+                        "0"
+                    );
+
+                return bQuality - aQuality;
+            });
+
+
+        // Prefer 1080p or lower.
+        let selected =
+            streams.find(stream => {
+
+                const quality =
+                    parseInt(
+                        stream.qualityLabel ||
+                        stream.quality ||
+                        "0"
+                    );
+
+                return quality <= 1080;
+
+            }) || streams[0];
+
+
+        // ----------------------------------------------------
+        // Adaptive fallback
+        // ----------------------------------------------------
+
+        if (!selected) {
+
+            const adaptive =
+                Array.isArray(
+                    data.adaptiveFormats
+                )
+                    ? data.adaptiveFormats
+                    : [];
+
+            const compatible =
+                adaptive
+                    .filter(stream =>
+                        stream.url &&
+                        (
+                            stream.type &&
+                            stream.type.includes(
+                                "video/mp4"
+                            )
+                        ) &&
+                        stream.audioQuality
+                    )
+                    .sort((a, b) => {
 
                         const aQuality =
                             parseInt(
@@ -446,50 +542,10 @@ async function openVideo(
                             bQuality -
                             aQuality
                         );
-                    }
-                );
-
-
-        // Prefer 1080p or lower.
-        let selected =
-            streams.find(stream => {
-
-                const quality =
-                    parseInt(
-                        stream.qualityLabel ||
-                        "0"
-                    );
-
-                return quality <= 1080;
-
-            }) || streams[0];
-
-
-        // ----------------------------------------------------
-        // Fallback to adaptive formats.
-        // ----------------------------------------------------
-
-        if (!selected) {
-
-            const adaptive =
-                Array.isArray(
-                    data.adaptiveFormats
-                )
-                    ? data.adaptiveFormats
-                    : [];
-
-            const combined =
-                adaptive.filter(stream => {
-
-                    return (
-                        stream.url &&
-                        stream.container === "mp4" &&
-                        stream.audioQuality
-                    );
-                });
+                    });
 
             selected =
-                combined.find(stream => {
+                compatible.find(stream => {
 
                     const quality =
                         parseInt(
@@ -499,14 +555,14 @@ async function openVideo(
 
                     return quality <= 1080;
 
-                }) || combined[0];
+                }) || compatible[0];
         }
 
 
         if (!selected) {
 
             throw new Error(
-                "Invidious returned no playable MP4 stream."
+                "Invidious returned no compatible video stream."
             );
         }
 
@@ -522,13 +578,15 @@ async function openVideo(
 
         player.load();
 
-        player.play().catch(
-            () => {}
-        );
+        await player.play().catch(() => {});
+
 
     } catch (error) {
 
-        console.error(error);
+        console.error(
+            "💀 Video error:",
+            error
+        );
 
         playerTitle.textContent =
             "💀 Pootube couldn't load this video.";
@@ -540,16 +598,14 @@ async function openVideo(
 
 
 // ============================================================
-// CLOSE PLAYER
+// CLOSE VIDEO
 // ============================================================
 
 function closePlayer() {
 
     player.pause();
 
-    player.removeAttribute(
-        "src"
-    );
+    player.removeAttribute("src");
 
     player.load();
 
@@ -602,7 +658,7 @@ async function randomVideo() {
 
 
 // ============================================================
-// UI
+// LOADING MESSAGE
 // ============================================================
 
 function showLoading(message) {
@@ -618,11 +674,22 @@ function showLoading(message) {
 }
 
 
+// ============================================================
+// ERROR MESSAGE
+// ============================================================
+
 function showError(error) {
 
-    console.error(error);
+    console.error(
+        "💀 POOTUBE ERROR:",
+        error
+    );
 
     videos.innerHTML = "";
+
+    const message =
+        error.message ||
+        "Unknown error";
 
     status.innerHTML = `
         <strong>
@@ -631,11 +698,14 @@ function showError(error) {
 
         <br><br>
 
-        ${escapeHTML(
-            error.message
-        )}
+        <pre style="
+            white-space: pre-wrap;
+            text-align: left;
+            max-width: 800px;
+            margin: auto;
+        ">${escapeHTML(message)}</pre>
 
-        <br><br>
+        <br>
 
         <button onclick="loadHome()">
             🔄 Try Again
@@ -647,6 +717,10 @@ function showError(error) {
     );
 }
 
+
+// ============================================================
+// TOAST
+// ============================================================
 
 function showMessage(message) {
 
@@ -663,17 +737,18 @@ function showMessage(message) {
     );
 
     setTimeout(
-        () =>
+        () => {
             toast.classList.add(
                 "hidden"
-            ),
+            );
+        },
         2500
     );
 }
 
 
 // ============================================================
-// KEYBOARD
+// ESCAPE KEY
 // ============================================================
 
 document.addEventListener(
@@ -696,5 +771,9 @@ document.addEventListener(
 // ============================================================
 // START POOTUBE
 // ============================================================
+
+console.log(
+    "💩 Pootube is starting..."
+);
 
 loadHome();
