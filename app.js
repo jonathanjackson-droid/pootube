@@ -1,31 +1,19 @@
 // ============================================================
-// POOTUBE
-// Custom YouTube frontend that looks like shit on a windshield
+// POOTUBE 💩
+// Invidious Edition
 // ============================================================
 
-// Piped public API instances.
-// These are taken from Piped's current public-instance list.
-// The app will automatically try them in order.
-const PIPED_INSTANCES = [
-    "https://pipedapi.kavin.rocks",
-    "https://pipedapi.leptons.xyz",
-    "https://pipedapi.nosebs.ru",
-    "https://pipedapi-libre.kavin.rocks",
-    "https://piped-api.privacy.com.de",
-    "https://pipedapi.adminforge.de",
-    "https://api.piped.yt",
-    "https://pipedapi.drgns.space",
-    "https://pipedapi.owo.si",
-    "https://pipedapi.ducks.party",
-    "https://piped-api.codespace.cz",
-    "https://pipedapi.reallyaweso.me",
-    "https://api.piped.private.coffee",
-    "https://pipedapi.darkness.services",
-    "https://pipedapi.orangenet.cc"
+const INVIDIOUS_INSTANCES = [
+    "https://inv.nadeko.net",
+    "https://yewtu.be",
+    "https://invidious.nerdvpn.de",
+    "https://invidious.private.coffee",
+    "https://inv.tux.pizza",
+    "https://invidious.nerdvpn.de"
 ];
 
-// The currently working instance.
-let ACTIVE_API = null;
+let ACTIVE_INSTANCE = null;
+
 
 // ============================================================
 // DOM
@@ -33,24 +21,31 @@ let ACTIVE_API = null;
 
 const videos = document.getElementById("videos");
 const status = document.getElementById("status");
+
 const searchForm = document.getElementById("searchForm");
 const searchInput = document.getElementById("searchInput");
 
 const playerModal = document.getElementById("playerModal");
 const player = document.getElementById("player");
+
 const playerTitle = document.getElementById("playerTitle");
 const playerUploader = document.getElementById("playerUploader");
 
+
 // ============================================================
-// API
+// INVIDIOUS API
 // ============================================================
 
 async function api(endpoint) {
 
-    // If we already found an instance, use it first.
-    const instances = ACTIVE_API
-        ? [ACTIVE_API, ...PIPED_INSTANCES.filter(x => x !== ACTIVE_API)]
-        : [...PIPED_INSTANCES];
+    const instances = ACTIVE_INSTANCE
+        ? [
+            ACTIVE_INSTANCE,
+            ...INVIDIOUS_INSTANCES.filter(
+                instance => instance !== ACTIVE_INSTANCE
+            )
+        ]
+        : [...INVIDIOUS_INSTANCES];
 
     let lastError = null;
 
@@ -58,15 +53,22 @@ async function api(endpoint) {
 
         try {
 
-            console.log("💩 Trying Piped instance:", instance);
+            console.log(
+                "💩 Trying Invidious:",
+                instance
+            );
 
-            const response = await fetch(instance + endpoint, {
-                headers: {
-                    "Accept": "application/json"
+            const response = await fetch(
+                instance + endpoint,
+                {
+                    headers: {
+                        "Accept": "application/json"
+                    }
                 }
-            });
+            );
 
             if (!response.ok) {
+
                 throw new Error(
                     `${instance} returned HTTP ${response.status}`
                 );
@@ -74,17 +76,19 @@ async function api(endpoint) {
 
             const data = await response.json();
 
-            // Success!
-            ACTIVE_API = instance;
+            ACTIVE_INSTANCE = instance;
 
-            console.log("✅ Pootube connected to:", ACTIVE_API);
+            console.log(
+                "✅ Pootube connected to:",
+                ACTIVE_INSTANCE
+            );
 
             return data;
 
         } catch (error) {
 
             console.warn(
-                "💀 Piped instance failed:",
+                "💀 Invidious instance failed:",
                 instance,
                 error
             );
@@ -94,34 +98,16 @@ async function api(endpoint) {
     }
 
     throw new Error(
-        "Every Piped instance failed. Last error: " +
+        "Every Invidious instance failed. " +
+        "Last error: " +
         (lastError?.message || "Unknown error")
     );
 }
 
+
 // ============================================================
 // HELPERS
 // ============================================================
-
-function getVideoId(url) {
-
-    if (!url) return null;
-
-    try {
-
-        const parsed = new URL(
-            url,
-            "https://piped.video"
-        );
-
-        return parsed.searchParams.get("v");
-
-    } catch {
-
-        return null;
-    }
-}
-
 
 function escapeHTML(value = "") {
 
@@ -136,22 +122,60 @@ function escapeHTML(value = "") {
 
 function formatViews(views) {
 
-    if (!views) return "No views";
+    if (!views) {
+        return "No views";
+    }
 
-    if (views >= 1000000000)
-        return (views / 1000000000).toFixed(1) + "B views";
+    if (views >= 1000000000) {
+        return (
+            (views / 1000000000).toFixed(1) +
+            "B views"
+        );
+    }
 
-    if (views >= 1000000)
-        return (views / 1000000).toFixed(1) + "M views";
+    if (views >= 1000000) {
+        return (
+            (views / 1000000).toFixed(1) +
+            "M views"
+        );
+    }
 
-    if (views >= 1000)
-        return (views / 1000).toFixed(1) + "K views";
+    if (views >= 1000) {
+        return (
+            (views / 1000).toFixed(1) +
+            "K views"
+        );
+    }
 
     return views + " views";
 }
 
+
+function getThumbnail(video) {
+
+    if (
+        Array.isArray(video.videoThumbnails) &&
+        video.videoThumbnails.length > 0
+    ) {
+
+        // Prefer the largest thumbnail.
+        const thumbnails =
+            [...video.videoThumbnails]
+                .sort(
+                    (a, b) =>
+                        (b.width || 0) -
+                        (a.width || 0)
+                );
+
+        return thumbnails[0].url;
+    }
+
+    return "";
+}
+
+
 // ============================================================
-// VIDEO GRID
+// RENDER VIDEOS
 // ============================================================
 
 function renderVideos(results) {
@@ -160,10 +184,13 @@ function renderVideos(results) {
 
     status.classList.add("hidden");
 
-    if (!Array.isArray(results) || results.length === 0) {
+    if (
+        !Array.isArray(results) ||
+        results.length === 0
+    ) {
 
         status.textContent =
-            "💩 Nothing came out of the pipe.";
+            "💩 Nothing came out of the sewer.";
 
         status.classList.remove("hidden");
 
@@ -172,18 +199,30 @@ function renderVideos(results) {
 
     for (const video of results) {
 
-        const id = getVideoId(video.url);
+        // Search results can contain channels,
+        // playlists, etc.
+        if (
+            video.type &&
+            video.type !== "video"
+        ) {
+            continue;
+        }
 
-        if (!id) continue;
+        if (!video.videoId) {
+            continue;
+        }
 
-        const card = document.createElement("article");
+        const card =
+            document.createElement("article");
 
         card.className = "video-card";
 
         card.innerHTML = `
             <img
                 class="thumbnail"
-                src="${escapeHTML(video.thumbnail || "")}"
+                src="${escapeHTML(
+                    getThumbnail(video)
+                )}"
                 alt=""
                 loading="lazy"
             >
@@ -191,22 +230,31 @@ function renderVideos(results) {
             <div class="video-info">
 
                 <div class="video-title">
-                    ${escapeHTML(video.title || "Untitled Crap")}
+                    ${escapeHTML(
+                        video.title ||
+                        "Untitled Crap"
+                    )}
                 </div>
 
                 <div class="video-meta">
 
                     ${escapeHTML(
-                        video.uploader || "Unknown creator"
+                        video.author ||
+                        "Unknown creator"
                     )}
 
                     <br>
 
-                    ${formatViews(video.views)}
+                    ${formatViews(
+                        video.viewCount
+                    )}
 
                     ${
-                        video.uploadedDate
-                            ? " • " + escapeHTML(video.uploadedDate)
+                        video.publishedText
+                            ? " • " +
+                              escapeHTML(
+                                  video.publishedText
+                              )
                             : ""
                     }
 
@@ -217,12 +265,13 @@ function renderVideos(results) {
 
         card.addEventListener(
             "click",
-            () => openVideo(id, video)
+            () => openVideo(video.videoId, video)
         );
 
         videos.appendChild(card);
     }
 }
+
 
 // ============================================================
 // TRENDING
@@ -230,10 +279,13 @@ function renderVideos(results) {
 
 async function loadTrending() {
 
-    document.getElementById("pageTitle").textContent =
-        "Trending";
+    document.getElementById(
+        "pageTitle"
+    ).textContent = "Trending";
 
-    document.getElementById("pageSubtitle").textContent =
+    document.getElementById(
+        "pageSubtitle"
+    ).textContent =
         "Today's hottest crap.";
 
     showLoading(
@@ -243,7 +295,7 @@ async function loadTrending() {
     try {
 
         const data = await api(
-            "/trending?region=US"
+            "/api/v1/trending?region=US"
         );
 
         renderVideos(data);
@@ -253,6 +305,7 @@ async function loadTrending() {
         showError(error);
     }
 }
+
 
 // ============================================================
 // SEARCH
@@ -267,12 +320,18 @@ searchForm.addEventListener(
         const query =
             searchInput.value.trim();
 
-        if (!query) return;
+        if (!query) {
+            return;
+        }
 
-        document.getElementById("pageTitle").textContent =
+        document.getElementById(
+            "pageTitle"
+        ).textContent =
             `Search: ${query}`;
 
-        document.getElementById("pageSubtitle").textContent =
+        document.getElementById(
+            "pageSubtitle"
+        ).textContent =
             "Searching the sewer...";
 
         showLoading(
@@ -282,7 +341,9 @@ searchForm.addEventListener(
         try {
 
             const data = await api(
-                `/search?q=${encodeURIComponent(query)}&filter=videos`
+                `/api/v1/search?q=${encodeURIComponent(
+                    query
+                )}&type=video&region=US`
             );
 
             renderVideos(data);
@@ -294,6 +355,7 @@ searchForm.addEventListener(
     }
 );
 
+
 // ============================================================
 // HOME
 // ============================================================
@@ -303,19 +365,27 @@ function loadHome() {
     loadTrending();
 }
 
+
 // ============================================================
 // VIDEO PLAYER
 // ============================================================
 
-async function openVideo(id, info = {}) {
+async function openVideo(
+    id,
+    info = {}
+) {
 
-    playerModal.classList.remove("hidden");
+    playerModal.classList.remove(
+        "hidden"
+    );
 
     playerTitle.textContent =
-        info.title || "Loading video...";
+        info.title ||
+        "Loading video...";
 
     playerUploader.textContent =
-        info.uploader || "Pootube";
+        info.author ||
+        "Pootube";
 
     player.removeAttribute("src");
 
@@ -324,54 +394,137 @@ async function openVideo(id, info = {}) {
     try {
 
         console.log(
-            "🎬 Getting stream information for:",
+            "🎬 Getting video information:",
             id
         );
 
-        const data =
-            await api(`/streams/${id}`);
+        const data = await api(
+            `/api/v1/videos/${encodeURIComponent(
+                id
+            )}?region=US`
+        );
 
-        const streams =
-            (data.videoStreams || [])
 
-                // We want streams containing BOTH
-                // video and audio.
-                .filter(stream =>
-                    stream.videoOnly === false &&
-                    stream.mimeType === "video/mp4"
-                )
+        // ----------------------------------------------------
+        // First try normal format streams.
+        // These usually contain both video and audio.
+        // ----------------------------------------------------
 
-                // Highest resolution first.
+        let streams =
+            Array.isArray(
+                data.formatStreams
+            )
+                ? data.formatStreams
+                : [];
+
+
+        streams =
+            streams
+                .filter(stream => {
+
+                    return (
+                        stream.container === "mp4" &&
+                        stream.url
+                    );
+                })
                 .sort(
-                    (a, b) =>
-                        (b.height || 0) -
-                        (a.height || 0)
+                    (a, b) => {
+
+                        const aQuality =
+                            parseInt(
+                                a.qualityLabel ||
+                                "0"
+                            );
+
+                        const bQuality =
+                            parseInt(
+                                b.qualityLabel ||
+                                "0"
+                            );
+
+                        return (
+                            bQuality -
+                            aQuality
+                        );
+                    }
                 );
 
-        if (!streams.length) {
+
+        // Prefer 1080p or lower.
+        let selected =
+            streams.find(stream => {
+
+                const quality =
+                    parseInt(
+                        stream.qualityLabel ||
+                        "0"
+                    );
+
+                return quality <= 1080;
+
+            }) || streams[0];
+
+
+        // ----------------------------------------------------
+        // Fallback to adaptive formats.
+        // ----------------------------------------------------
+
+        if (!selected) {
+
+            const adaptive =
+                Array.isArray(
+                    data.adaptiveFormats
+                )
+                    ? data.adaptiveFormats
+                    : [];
+
+            const combined =
+                adaptive.filter(stream => {
+
+                    return (
+                        stream.url &&
+                        stream.container === "mp4" &&
+                        stream.audioQuality
+                    );
+                });
+
+            selected =
+                combined.find(stream => {
+
+                    const quality =
+                        parseInt(
+                            stream.qualityLabel ||
+                            "0"
+                        );
+
+                    return quality <= 1080;
+
+                }) || combined[0];
+        }
+
+
+        if (!selected) {
 
             throw new Error(
-                "No compatible MP4 stream was returned."
+                "Invidious returned no playable MP4 stream."
             );
         }
 
-        // Prefer 1080p or lower.
-        const stream =
-            streams.find(
-                stream =>
-                    (stream.height || 0) <= 1080
-            ) || streams[0];
 
         console.log(
             "📺 Selected stream:",
-            stream
+            selected
         );
 
-        player.src = stream.url;
+
+        player.src =
+            selected.url;
 
         player.load();
 
-        player.play().catch(() => {});
+        player.play().catch(
+            () => {}
+        );
 
     } catch (error) {
 
@@ -385,6 +538,7 @@ async function openVideo(id, info = {}) {
     }
 }
 
+
 // ============================================================
 // CLOSE PLAYER
 // ============================================================
@@ -393,12 +547,17 @@ function closePlayer() {
 
     player.pause();
 
-    player.removeAttribute("src");
+    player.removeAttribute(
+        "src"
+    );
 
     player.load();
 
-    playerModal.classList.add("hidden");
+    playerModal.classList.add(
+        "hidden"
+    );
 }
+
 
 // ============================================================
 // RANDOM CRAP
@@ -408,24 +567,31 @@ async function randomVideo() {
 
     try {
 
-        const data =
-            await api("/trending?region=US");
+        const data = await api(
+            "/api/v1/trending?region=US"
+        );
 
-        if (!data.length) return;
+        if (
+            !Array.isArray(data) ||
+            data.length === 0
+        ) {
+            return;
+        }
 
         const video =
             data[
                 Math.floor(
-                    Math.random() * data.length
+                    Math.random() *
+                    data.length
                 )
             ];
 
-        const id =
-            getVideoId(video.url);
+        if (video.videoId) {
 
-        if (id) {
-
-            openVideo(id, video);
+            openVideo(
+                video.videoId,
+                video
+            );
         }
 
     } catch (error) {
@@ -434,17 +600,21 @@ async function randomVideo() {
     }
 }
 
+
 // ============================================================
-// UI STATUS
+// UI
 // ============================================================
 
 function showLoading(message) {
 
     videos.innerHTML = "";
 
-    status.textContent = message;
+    status.textContent =
+        message;
 
-    status.classList.remove("hidden");
+    status.classList.remove(
+        "hidden"
+    );
 }
 
 
@@ -461,7 +631,9 @@ function showError(error) {
 
         <br><br>
 
-        ${escapeHTML(error.message)}
+        ${escapeHTML(
+            error.message
+        )}
 
         <br><br>
 
@@ -470,24 +642,35 @@ function showError(error) {
         </button>
     `;
 
-    status.classList.remove("hidden");
+    status.classList.remove(
+        "hidden"
+    );
 }
 
 
 function showMessage(message) {
 
     const toast =
-        document.getElementById("toast");
+        document.getElementById(
+            "toast"
+        );
 
-    toast.textContent = message;
+    toast.textContent =
+        message;
 
-    toast.classList.remove("hidden");
+    toast.classList.remove(
+        "hidden"
+    );
 
     setTimeout(
-        () => toast.classList.add("hidden"),
+        () =>
+            toast.classList.add(
+                "hidden"
+            ),
         2500
     );
 }
+
 
 // ============================================================
 // KEYBOARD
@@ -499,13 +682,16 @@ document.addEventListener(
 
         if (
             event.key === "Escape" &&
-            !playerModal.classList.contains("hidden")
+            !playerModal.classList.contains(
+                "hidden"
+            )
         ) {
 
             closePlayer();
         }
     }
 );
+
 
 // ============================================================
 // START POOTUBE
